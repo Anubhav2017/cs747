@@ -2,7 +2,7 @@
 import random,argparse,sys
 parser = argparse.ArgumentParser()
 import numpy as np
-import pulp as pulp
+import pulp
 
 def hpi(mdpfile):
     infile = open(mdpfile, 'r') 
@@ -61,20 +61,24 @@ def hpi(mdpfile):
         action=a[i]
         reward=r[i]
         tp=t[i]
-        # print(action)
         data_ns[curr_state][action].append(ns)
         data_R[curr_state][action].append(reward)
         data_T[curr_state][action].append(tp)
       
     # print(data_T)
     # print(data_R)
+    # print(data_ns)
     v=[random.random() for i in range(numstates)]
 
     current_policy=[0 for _ in range(numstates)]
 
     for i in range(numstates):
-        actions=list(data_ns[i].keys())
-        current_policy[i]=actions[0]
+        actions=[]
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j]) > 0:
+                actions.append(j)
+        if len(actions) > 0:
+            current_policy[i]=actions[0]
 
     
     newpolicy=current_policy[:]
@@ -97,7 +101,13 @@ def hpi(mdpfile):
 
     
     for i in range(numstates):
-        actions=list(data_ns[i].keys())
+        # actions=list(data_ns[i].keys())
+        # actions=[j for j in data_ns[i].keys() if len(data_ns[i][j]) is not 0]
+        actions=[]
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j]) != 0:
+                actions.append(j)
+            
         a=current_policy[i]
 
         next_states=data_ns[i][a]
@@ -125,8 +135,10 @@ def hpi(mdpfile):
                 vt1=v[next_states[k]]
                 value+=T*(R+discount*vt1)
             allvalues.append(value)
-        if(currvalue<np.max(allvalues)):
-            newpolicy[i]=list(data_ns[i].keys())[np.argmax(allvalues)]
+
+        if len(allvalues) >0:    
+            if(currvalue<np.max(allvalues)):
+                newpolicy[i]=actions[np.argmax(allvalues)]
 
 
     while(newpolicy != current_policy):
@@ -150,7 +162,11 @@ def hpi(mdpfile):
         v=np.linalg.inv(A).dot(B)
         
         for i in range(numstates):
-            actions=list(data_ns[i].keys())
+            actions=[]
+
+            for j in data_ns[i].keys():
+                if len(data_ns[i][j])>0:
+                    actions.append(j)
             a=current_policy[i]
 
             next_states=data_ns[i][a]
@@ -178,8 +194,11 @@ def hpi(mdpfile):
                     vt1=v[next_states[k]]
                     value+=T*(R+discount*vt1)
                 allvalues.append(value)
-            if(currvalue<np.max(allvalues)):
-                newpolicy[i]=list(data_ns[i].keys())[np.argmax(allvalues)]
+
+            if len(allvalues) >0:    
+                if(currvalue<np.max(allvalues)):
+                    newpolicy[i]=actions[np.argmax(allvalues)]
+            
             # print(allvalues)    
     # print(newpolicy)
 
@@ -265,7 +284,14 @@ def vi(mdpfile):
     next_v=[0 for i in range(numstates)]
     for i in range(numstates):
         next_values=[]
-        actions=data_ns[i].keys()
+
+        actions=[]
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j]) > 0:
+                actions.append(j)
+
+       
+
         for j in actions:
             next_states=data_ns[i][j]
 
@@ -278,7 +304,10 @@ def vi(mdpfile):
 
             next_values.append(value)
 
-        next_value=np.max(next_values)
+        next_value=0
+        if len(actions)>0:
+            next_value=np.max(next_values)
+        
         next_v[i]=next_value
 
 
@@ -301,14 +330,21 @@ def vi(mdpfile):
                 # print(value)
                 next_values.append(value)
 
-            next_value=np.max(next_values)
+            next_value=0
+            if len(actions)>0:
+                next_value=np.max(next_values)
+        
             next_v[i]=next_value
 
     v=next_v[:]
     policy=[0 for _ in range(numstates)]
 
     for i in range(numstates):
-        actions=list(data_ns[i].keys())
+        actions=[]
+
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j])>0:
+                actions.append(j)
         allvalues=[]
 
         for j in actions:
@@ -324,7 +360,14 @@ def vi(mdpfile):
                 value+=T*(R+discount*vt1)
             allvalues.append(value)
 
-        policy[i]=list(data_ns[i].keys())[np.argmax(allvalues)]
+        actions=[]
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j]) > 0:
+                actions.append(j)
+        if len(allvalues) >0:        
+            policy[i]=actions[np.argmax(allvalues)]
+        else:
+            policy[i]=0
     
     for i in range(numstates):
         print(v[i], policy[i])
@@ -420,8 +463,7 @@ def lp(mdpfile):
 
             # print(value)
             prob+= lpvars[i] >= value
-
-    prob.solve()
+    prob.solve(pulp.PULP_CBC_CMD(msg=0))
     v=[]
 
     for i in range(numstates):
@@ -431,7 +473,12 @@ def lp(mdpfile):
     policy=[0 for _ in range(numstates)]
 
     for i in range(numstates):
-        actions=list(data_ns[i].keys())
+        actions=[]
+
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j])>0:
+                actions.append(j)
+
         allvalues=[]
 
         for j in actions:
@@ -447,7 +494,13 @@ def lp(mdpfile):
                 value+=T*(R+discount*vt1)
             allvalues.append(value)
 
-        policy[i]=list(data_ns[i].keys())[np.argmax(allvalues)]
+        actions=[]
+        for j in data_ns[i].keys():
+            if len(data_ns[i][j]) > 0:
+                actions.append(j)
+        if len(allvalues)>0:
+            policy[i]=actions[np.argmax(allvalues)]
+        else: policy[i]=0
     
     for i in range(numstates):
         print(v[i], policy[i])
